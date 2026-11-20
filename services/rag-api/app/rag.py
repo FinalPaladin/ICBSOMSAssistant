@@ -21,6 +21,7 @@ Quy tắc:
    - Khi được hỏi "khi nào / điều kiện nào để xảy ra X": PHẢI nêu rõ **điều kiện / trạng thái / thao tác đứng TRƯỚC kích hoạt X**, rồi mới nêu hành động X và hệ thống/bộ phận thực hiện (dạng: "Khi [điều kiện/trạng thái trước], hệ thống sẽ [hành động X] trên [bộ phận/hệ thống]."). KHÔNG trả lời bằng bước diễn ra sau X.
    - Khi được hỏi "tại sao không thực hiện/nhấn được X": hãy đối chiếu các **điều kiện tiên quyết (Precondition), trạng thái đơn yêu cầu và quyền (permission)** của X trong thông tin bên dưới để liệt kê rõ các nguyên nhân có thể xảy ra (chỉ dựa trên các điều kiện có trong thông tin, không bịa thêm).
    - Khi được hỏi về API, đường dẫn, trạng thái, nút hay thông số cụ thể, PHẢI nêu chính xác giá trị đó (như đường dẫn API `/...`) nếu có trong thông tin bên dưới.
+   - Trả lời thẳng, đúng trọng tâm, **chỉ nêu những thông tin liên quan trực tiếp đến câu hỏi** (không lan man thêm chi tiết thừa không được hỏi).
    - Trình bày đẹp, dễ đọc bằng Markdown: **in đậm** tên trạng thái, nút bấm, mã lỗi, hệ thống và mốc thời gian/con số quan trọng (ví dụ **Packed**, **Received**, **T105**, **17:30**); đặt đường dẫn API hoặc tên trường kỹ thuật trong dấu `` `...` `` (ví dụ `` `CNextID` ``). Khi liệt kê các bước, gom hành động và kết quả của bước đó vào cùng một mục (không tách hệ quả thành bước đánh số riêng).
 4. Tuyệt đối KHÔNG chép nguyên văn các dòng mô tả thô, không dùng ngoặc vuông `[...]`, không dùng mũi tên `→`, không dẫn nguồn, không mở đầu kiểu "theo sơ đồ/tài liệu", không đánh số bước nội bộ.
 5. CHỈ viết bằng tiếng Việt (giữ nguyên tên nút, trạng thái, mã, đường dẫn API tiếng Anh trong tài liệu). TUYỆT ĐỐI KHÔNG dùng chữ tiếng Trung/Hán tự.
@@ -227,8 +228,15 @@ async def answer(user: User, message: str, conversation_id: str | None, screen_r
         qvec = (await asyncio.to_thread(ollama_client.embed, [query]))[0]
         hits = await asyncio.to_thread(vectorstore.secure_search, user, qvec, settings.top_k_search)
 
+        # Lexical boost nhẹ cho thuật ngữ/từ khoá khớp chính xác (tên trạng thái, mã, nút, API...)
+        q_terms = {t.lower() for t in re.findall(r"[A-Za-z0-9_./-]{3,}", message) if t.lower() not in {"oms", "the", "and", "for"}}
+
         def boosted(h) -> float:
             b = settings.screen_boost if sc and sc.screen_id in (h.payload.get("screens") or []) else 0.0
+            if q_terms:
+                body_l = (h.payload.get("header", "") + "\n" + h.payload.get("text", "")).lower()
+                matched = sum(1 for t in q_terms if t in body_l)
+                b += 0.08 * (matched / len(q_terms))
             return h.score + b
 
         hits = sorted(hits, key=boosted, reverse=True)
@@ -257,9 +265,9 @@ async def answer(user: User, message: str, conversation_id: str | None, screen_r
                             "\n(Khi câu hỏi dùng \"màn hình này\", \"đơn này\", \"nút này\"... hãy hiểu là màn hình trên.)\n")
         msgs: list[dict] = [{"role": "system", "content": SYSTEM_PROMPT.format(
             refusal=REFUSAL_TEXT, screen_block=screen_block, context=context)}]
-        for h in history:
+        for h in history[-2:]:
             msgs.append({"role": "user", "content": h["question"]})
-            msgs.append({"role": "assistant", "content": h["answer"][:600]})
+            msgs.append({"role": "assistant", "content": h["answer"][:250]})
         msgs.append({"role": "user", "content": message})
 
         if _sem.locked():

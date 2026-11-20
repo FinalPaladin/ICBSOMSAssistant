@@ -102,7 +102,7 @@ def describe_image_bytes(data: bytes) -> str:
         r = c.post(f"{settings.ollama_url}/api/chat", json={
             "model": settings.vision_model,
             "messages": [{"role": "user", "content": prompt, "images": [b64]}],
-            "stream": False, "options": {"temperature": 0.1, "num_ctx": 4096, "num_predict": 1200},
+            "stream": False, "keep_alive": 0, "options": {"temperature": 0.1, "num_ctx": 4096, "num_predict": 1200},
         })
         r.raise_for_status()
         text = r.json().get("message", {}).get("content", "").strip()

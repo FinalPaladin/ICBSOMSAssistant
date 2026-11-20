@@ -126,11 +126,12 @@ function renderMd(raw){
   for (const ln of lines){
     const t = ln.trim();
     if(!t){ closeList(); continue; }
-    const ol = t.match(/^\d+[.)]\s+(.*)$/);
+    const ol = t.match(/^(\d+)[.)]\s+(.*)$/);
     const ul = t.match(/^[-*•]\s+(.*)$/);
     if(ol){
-      if(list !== "ol"){ closeList(); html += "<ol>"; list = "ol"; }
-      html += `<li>${inline(ol[1])}</li>`;
+      const start = parseInt(ol[1], 10);
+      if(list !== "ol"){ closeList(); html += start > 1 ? `<ol start="${start}">` : "<ol>"; list = "ol"; }
+      html += `<li>${inline(ol[2])}</li>`;
     } else if(ul){
       if(list !== "ul"){ closeList(); html += "<ul>"; list = "ul"; }
       html += `<li>${inline(ul[1])}</li>`;
