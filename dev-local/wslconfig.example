@@ -1,0 +1,6 @@
+# Copy nội dung này vào %UserProfile%\.wslconfig rồi chạy: wsl --shutdown  (và mở lại Docker Desktop)
+# Máy i7-13700H / 32GB: cấp ~22GB cho Docker để vẫn dùng được IDE/trình duyệt.
+[wsl2]
+memory=22GB
+processors=16
+swap=8GB

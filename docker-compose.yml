@@ -1,0 +1,71 @@
+name: oms-assistant
+
+# Mạng "internal": KHÔNG có đường ra Internet (ollama, qdrant, postgres chỉ nằm ở đây).
+# rag-api nằm thêm ở mạng "edge" chỉ để publish cổng ra localhost.
+networks:
+  internal:
+    internal: true
+  edge: {}
+
+volumes:
+  ollama_models:
+    name: oms_ollama_models      # dùng chung với scripts/pull-models.ps1
+  qdrant_data:
+  app_data:
+  pg_data:
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    networks: [internal]
+    volumes:
+      - ollama_models:/root/.ollama
+    environment:
+      OLLAMA_NUM_PARALLEL: "2"
+      OLLAMA_MAX_LOADED_MODELS: "2"   # LLM + embedding (model ảnh được nạp/gỡ khi cần)
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_MAX_QUEUE: "32"
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    restart: unless-stopped
+    networks: [internal]
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__TELEMETRY_DISABLED: "true"
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [internal]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: assistant
+      POSTGRES_USER: assistant
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-assistant_dev_pw}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U assistant -d assistant"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  rag-api:
+    build: ./services/rag-api
+    restart: unless-stopped
+    networks: [internal, edge]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    env_file: .env
+    ports:
+      - "127.0.0.1:8088:8080"     # 8080 đang được Airflow dùng
+    volumes:
+      - app_data:/data
+      - ./config:/config:ro

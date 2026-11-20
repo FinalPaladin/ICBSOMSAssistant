@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OMS Assistant – Trang test local</title>
+<style>
+  *{box-sizing:border-box} body{font-family:Segoe UI,Arial,sans-serif;margin:0;background:#f4f6f9;color:#222}
+  header{background:#0b5cab;color:#fff;padding:10px 16px;display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+  header label{font-size:12px;display:flex;flex-direction:column;gap:3px} header input,header select{padding:5px;border-radius:4px;border:0;min-width:160px}
+  header .wide{min-width:320px}
+  nav{display:flex;background:#fff;border-bottom:1px solid #ddd} nav button{border:0;background:none;padding:10px 18px;cursor:pointer;font-size:14px}
+  nav button.active{border-bottom:3px solid #0b5cab;font-weight:600}
+  main{padding:16px;max-width:1100px;margin:auto} .tab{display:none} .tab.active{display:block}
+  #msgs{background:#fff;border:1px solid #ddd;border-radius:8px;height:55vh;overflow:auto;padding:12px}
+  .m{margin:8px 0;padding:10px 14px;border-radius:10px;max-width:85%;line-height:1.55;font-size:14px}
+  .u{background:#d9ecff;margin-left:auto;white-space:pre-wrap} .b{background:#f5f7fa;border:1px solid #e6ebf1} .b.refused{background:#fff3cd;border-color:#ffe08a}
+  .b p{margin:0 0 8px} .b p:last-child,.b ul:last-child,.b ol:last-child{margin-bottom:0}
+  .b ul,.b ol{margin:4px 0 8px;padding-left:20px} .b li{margin:4px 0}
+  .b strong{color:#0b3d75}
+  .b code{background:#e7edf5;color:#1b2a41;padding:1px 5px;border-radius:4px;font-family:Consolas,monospace;font-size:12.5px}
+  .st{font-size:12px;color:#888;margin:4px 0}
+  #row{display:flex;gap:8px;margin-top:10px} #q{flex:1;padding:10px;border:1px solid #bbb;border-radius:6px}
+  button.p{background:#0b5cab;color:#fff;border:0;border-radius:6px;padding:8px 16px;cursor:pointer} button.p:disabled{opacity:.5}
+  .chips button{margin:4px 4px 0 0;border:1px solid #0b5cab;background:#fff;color:#0b5cab;border-radius:14px;padding:4px 10px;cursor:pointer;font-size:12px}
+  table{width:100%;border-collapse:collapse;background:#fff;font-size:13px} th,td{border:1px solid #ddd;padding:6px;text-align:left;vertical-align:top}
+  th{background:#eef2f7} .box{background:#fff;border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:12px}
+  .box label{display:block;margin:6px 0;font-size:13px} .box input[type=text]{width:100%;padding:6px}
+  .s-indexed{color:#0a7d2c;font-weight:600}.s-failed{color:#c00;font-weight:600}.s-pending,.s-processing{color:#c77d00}
+  pre{white-space:pre-wrap;background:#fafafa;border:1px solid #ddd;padding:8px;max-height:300px;overflow:auto}
+</style>
+</head>
+<body>
+<header>
+  <label>User giả lập (JWT)
+    <select id="persona"></select></label>
+  <label>role (cách nhau dấu phẩy)<input id="roles" class="wide"></label>
+  <label>permission (cách nhau dấu phẩy)<input id="perms" class="wide"></label>
+  <label>Màn hình OMS đang mở<select id="screen"></select></label>
+  <label>Trạng thái đơn (demo)<input id="orderStatus" placeholder="vd: WaitingApproval"></label>
+  <span id="who" style="font-size:12px"></span>
+</header>
+<nav>
+  <button class="active" data-tab="chat">💬 Chat</button>
+  <button data-tab="docs">📄 Tài liệu (Admin)</button>
+  <button data-tab="logs">🧾 Lịch sử chat (Admin)</button>
+</nav>
+<main>
+  <section id="chat" class="tab active">
+    <div class="chips" id="chips"></div>
+    <div id="msgs"></div>
+    <div id="row"><input id="q" placeholder="Hỏi về quy trình, nghiệp vụ OMS..." autocomplete="off">
+      <button class="p" id="send">Gửi</button><button id="newc">Hội thoại mới</button></div>
+  </section>
+
+  <section id="docs" class="tab">
+    <div class="box">
+      <b>Upload tài liệu</b> (.docx, .xlsx, .drawio, .xml<span id="imgnote">, .png/.jpg nếu bật VISION_MODEL</span>)
+      <label>File <input type="file" id="f"></label>
+      <label>Tiêu đề (tuỳ chọn) <input type="text" id="t"></label>
+      <label>allowed_roles (vd: OMS.Online,OMS.Offline) <input type="text" id="ar"></label>
+      <label>required_permissions (tuỳ chọn, thu hẹp thêm) <input type="text" id="rp"></label>
+      <label>Màn hình liên quan (giữ Ctrl để chọn nhiều) <select id="sc" multiple size="5"></select></label>
+      <label><input type="checkbox" id="pub"> Tài liệu chung (mọi nhân viên đăng nhập đều xem được)</label>
+      <button class="p" id="up">Upload & Index</button> <span id="upmsg"></span>
+    </div>
+    <button id="refresh">Làm mới danh sách</button>
+    <table id="doclist"></table>
+    <pre id="preview" style="display:none"></pre>
+  </section>
+
+  <section id="logs" class="tab"><button id="rlogs">Làm mới</button><table id="loglist"></table></section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const OB = ["OMS","OMS.Dashboard","OMS.Online","OMS.Online.SaleOrders","OMS.Online.SaleOrders.Detail","OMS.Online.SaleOrders.Update","OMS.Online.SaleOrders.Cancel","OMS.Online.SaleOrders.Return","OMS.Online.ReturnOrders","OMS.Online.ReturnOrders.Detail"];
+const OF = ["OMS","OMS.Dashboard","OMS.Offline","OMS.Offline.SaleOrders","OMS.Offline.SaleOrders.Detail","OMS.Offline.SaleOrders.ResolveIssue"];
+const PERSONAS = {
+  "Nhân viên Online":        {roles:["OMS.Online"], perms:OB},
+  "Nhân viên Offline":       {roles:["OMS.Offline"], perms:OF},
+  "Online + Offline (nhiều role)": {roles:["OMS.Online","OMS.Offline"], perms:[...new Set([...OB,...OF])]},
+  "Admin quản trị tài liệu":  {roles:["OMS.Online","Admin"], perms:[...OB,"Assistant.KB.Manage","Assistant.Chat"]},
+  "Không có role nào":        {roles:[], perms:["OMS"]},
+};
+let token = null, convId = null, busy = false;
+
+const split = s => s.split(",").map(x => x.trim()).filter(Boolean);
+const H = () => ({Authorization: "Bearer " + token});
+
+for (const k of Object.keys(PERSONAS)) $("#persona").add(new Option(k, k));
+function applyPersona(){ const p = PERSONAS[$("#persona").value]; $("#roles").value = p.roles.join(","); $("#perms").value = p.perms.join(","); mint(); }
+async function mint(){
+  const r = await fetch("/dev/token", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({sub: $("#persona").value, name: $("#persona").value, role: split($("#roles").value), permission: split($("#perms").value)})});
+  if(!r.ok){ $("#who").textContent = "Không lấy được token (ENV phải là dev)"; return; }
+  token = (await r.json()).token; convId = null; $("#msgs").innerHTML = "";
+  const me = await (await fetch("/api/me", {headers:H()})).json();
+  $("#who").textContent = `${me.name} | admin KB: ${me.is_kb_admin ? "có" : "không"}`;
+  await loadScreens();
+  if(me.is_kb_admin){ loadAdminScreens(); loadDocs(); }
+}
+async function loadScreens(){
+  const list = await (await fetch("/api/screens", {headers:H()})).json();
+  const sel = $("#screen"); sel.innerHTML = ""; sel.add(new Option("(không chọn màn hình)", ""));
+  list.forEach(s => { const o = new Option(s.name, s.screen_id); o.dataset.q = JSON.stringify(s.suggested_questions); sel.add(o); });
+  showChips();
+}
+function showChips(){
+  const o = $("#screen").selectedOptions[0]; const qs = o && o.dataset.q ? JSON.parse(o.dataset.q) : [];
+  $("#chips").innerHTML = ""; qs.forEach(q => { const b = document.createElement("button"); b.textContent = q; b.onclick = () => { $("#q").value = q; send(); }; $("#chips").appendChild(b); });
+}
+async function loadAdminScreens(){
+  const r = await fetch("/api/admin/screens", {headers:H()}); if(!r.ok) return;
+  const list = await r.json(); const sel = $("#sc"); sel.innerHTML = "";
+  list.forEach(s => sel.add(new Option(s.name, s.screen_id)));
+}
+function renderMd(raw){
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const lines = String(raw || "").replace(/\r\n/g, "\n").split("\n");
+  let html = "", list = null;
+  const closeList = () => { if(list){ html += `</${list}>`; list = null; } };
+  for (const ln of lines){
+    const t = ln.trim();
+    if(!t){ closeList(); continue; }
+    const ol = t.match(/^\d+[.)]\s+(.*)$/);
+    const ul = t.match(/^[-*•]\s+(.*)$/);
+    if(ol){
+      if(list !== "ol"){ closeList(); html += "<ol>"; list = "ol"; }
+      html += `<li>${inline(ol[1])}</li>`;
+    } else if(ul){
+      if(list !== "ul"){ closeList(); html += "<ul>"; list = "ul"; }
+      html += `<li>${inline(ul[1])}</li>`;
+    } else {
+      closeList();
+      html += `<p>${inline(t)}</p>`;
+    }
+  }
+  closeList();
+  return html;
+}
+function addMsg(cls, text){
+  const d = document.createElement("div"); d.className = "m " + cls;
+  if(cls === "b"){ d.dataset.raw = text; d.innerHTML = renderMd(text); } else { d.textContent = text; }
+  $("#msgs").appendChild(d); $("#msgs").scrollTop = 1e9; return d;
+}
+function setBot(bub, raw){ bub.dataset.raw = raw; bub.innerHTML = renderMd(raw); $("#msgs").scrollTop = 1e9; }
+
+async function send(){
+  const q = $("#q").value.trim(); if(!q || busy || !token) return;
+  busy = true; $("#send").disabled = true; $("#q").value = ""; addMsg("u", q);
+  const st = document.createElement("div"); st.className = "st"; $("#msgs").appendChild(st);
+  const bub = addMsg("b", ""); let mid = null;
+  const state = $("#orderStatus").value.trim() ? {orderStatus: $("#orderStatus").value.trim()} : {};
+  try{
+    const r = await fetch("/api/chat", {method:"POST", headers:{...H(), "Content-Type":"application/json"},
+      body: JSON.stringify({message:q, conversation_id: convId, screen: {screen_id: $("#screen").value || null, state}})});
+    if(!r.ok){ setBot(bub, "Lỗi " + r.status + ": " + (await r.text())); throw 0; }
+    const rd = r.body.getReader(), dec = new TextDecoder(); let buf = "";
+    while(true){
+      const {done, value} = await rd.read(); if(done) break;
+      buf += dec.decode(value, {stream:true}); let i;
+      while((i = buf.indexOf("\n\n")) >= 0){
+        const blk = buf.slice(0, i); buf = buf.slice(i+2);
+        const ev = (blk.match(/^event: (.*)$/m)||[])[1], data = JSON.parse((blk.match(/^data: (.*)$/m)||[,"{}"])[1]);
+        if(ev==="status"){ if(data.conversation_id) convId = data.conversation_id; st.textContent = {searching:"Đang tìm tài liệu…",queued:"Đang xếp hàng…",generating:"Đang soạn câu trả lời…"}[data.stage]||""; }
+        else if(ev==="token"){ setBot(bub, (bub.dataset.raw || "") + data.t); }
+        else if(ev==="replace"){ setBot(bub, data.text); }
+        else if(ev==="retract"){ setBot(bub, data.replacement); bub.classList.add("refused"); }
+        else if(ev==="error"){ setBot(bub, data.message); }
+        else if(ev==="done"){ mid = data.message_id; if(data.refused) bub.classList.add("refused"); if(data.conversation_id) convId = data.conversation_id; }
+      }
+    }
+  }catch(e){ if(e && !bub.dataset.raw) setBot(bub, "Không kết nối được máy chủ."); }
+  st.remove();
+  if(mid){ const fb = document.createElement("div"); fb.className = "st";
+    fb.innerHTML = '<a href="#" data-r="1">👍</a> <a href="#" data-r="-1">👎</a>';
+    fb.onclick = async e => { e.preventDefault(); const r = e.target.dataset.r; if(!r) return;
+      await fetch("/api/feedback", {method:"POST", headers:{...H(), "Content-Type":"application/json"}, body: JSON.stringify({message_id: mid, rating: +r})}); fb.textContent = "Cảm ơn phản hồi!"; };
+    $("#msgs").appendChild(fb); $("#msgs").scrollTop = 1e9; }
+  busy = false; $("#send").disabled = false; $("#q").focus();
+}
+
+// ---- Admin: documents ----
+async function loadDocs(){
+  const r = await fetch("/api/admin/documents", {headers:H()});
+  if(!r.ok){ $("#doclist").innerHTML = "<tr><td>Cần chọn user có quyền Assistant.KB.Manage (persona Admin)</td></tr>"; return false; }
+  const docs = await r.json();
+  $("#doclist").innerHTML = "<tr><th>Tài liệu</th><th>Loại</th><th>Trạng thái</th><th>Chunks</th><th>Quyền</th><th></th></tr>" +
+    docs.map(d => `<tr><td>${esc(d.title)}<br><small>${esc(d.file_name)}</small></td><td>${d.source_type}</td>
+      <td class="s-${d.status}">${d.status}<br><small>${esc(d.error||"")}</small></td><td>${d.chunks}</td>
+      <td>${d.is_public?"<b>PUBLIC</b><br>":""}roles: ${esc(d.allowed_roles.join(", "))}<br>perm: ${esc(d.required_permissions.join(", "))}<br>screens: ${esc(d.screens.join(", "))}</td>
+      <td><button onclick="prev('${d.id}')">Xem chunks</button> <button onclick="editAcc('${d.id}')">Sửa quyền</button> <button onclick="del('${d.id}')">Xoá</button></td></tr>`).join("");
+  return docs.some(d => d.status === "pending" || d.status === "processing");
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+async function poll(){ while(await loadDocs()) await new Promise(r => setTimeout(r, 3000)); }
+$("#up").onclick = async () => {
+  const f = $("#f").files[0]; if(!f){ $("#upmsg").textContent = "Chọn file trước"; return; }
+  const fd = new FormData(); fd.append("file", f); fd.append("title", $("#t").value); fd.append("allowed_roles", $("#ar").value);
+  fd.append("required_permissions", $("#rp").value); fd.append("is_public", $("#pub").checked);
+  fd.append("screens", [...$("#sc").selectedOptions].map(o => o.value).join(","));
+  $("#upmsg").textContent = "Đang upload…";
+  const r = await fetch("/api/admin/documents", {method:"POST", headers:H(), body: fd});
+  $("#upmsg").textContent = r.ok ? "Đã nhận, đang index (xem trạng thái bên dưới)…" : "Lỗi: " + (await r.text());
+  if(r.ok){ $("#f").value = ""; poll(); }
+};
+async function prev(id){ const r = await fetch(`/api/admin/documents/${id}/chunks`, {headers:H()}); const c = await r.json(); const p = $("#preview"); p.style.display = "block";
+  p.textContent = c.map((x,i) => `#${i+1} [${x.section}]\n${x.text}`).join("\n\n----------\n\n") || "(không có chunk)"; p.scrollIntoView(); }
+async function editAcc(id){
+  const docs = await (await fetch("/api/admin/documents", {headers:H()})).json(); const d = docs.find(x => x.id === id);
+  const roles = prompt("allowed_roles (phẩy):", d.allowed_roles.join(",")); if(roles === null) return;
+  const perms = prompt("required_permissions (phẩy, có thể để trống):", d.required_permissions.join(",")); if(perms === null) return;
+  const pub = confirm("Đặt là tài liệu CHUNG cho mọi nhân viên? (OK = có)");
+  const r = await fetch(`/api/admin/documents/${id}/access`, {method:"PATCH", headers:{...H(), "Content-Type":"application/json"},
+    body: JSON.stringify({allowed_roles: split(roles), required_permissions: split(perms), is_public: pub, screens: d.screens})});
+  if(!r.ok) alert(await r.text()); loadDocs();
+}
+async function del(id){ if(!confirm("Xoá tài liệu này khỏi kho tri thức?")) return; await fetch(`/api/admin/documents/${id}`, {method:"DELETE", headers:H()}); loadDocs(); }
+$("#refresh").onclick = loadDocs;
+$("#rlogs").onclick = async () => {
+  const r = await fetch("/api/admin/logs?limit=100", {headers:H()}); if(!r.ok){ $("#loglist").innerHTML = "<tr><td>Cần quyền admin</td></tr>"; return; }
+  const l = await r.json();
+  $("#loglist").innerHTML = "<tr><th>Giờ (UTC)</th><th>User / role</th><th>Màn hình</th><th>Câu hỏi</th><th>Trả lời</th><th>Score</th><th>ms</th><th>👍</th><th>Nguồn nội bộ</th></tr>" +
+    l.map(m => `<tr><td>${m.created_at}</td><td>${esc(m.user_name)}<br><small>${esc(m.roles.join(", "))}</small></td><td>${esc(m.screen_id||"")}</td>
+    <td>${esc(m.question)}</td><td>${esc(m.answer)}${m.refused?`<br><b>[TỪ CHỐI: ${m.refuse_reason}]</b>`:""}</td><td>${m.top_score==null?"":m.top_score.toFixed(3)}</td>
+    <td>${m.latency_ms}</td><td>${m.feedback??""}</td><td><small>${m.sources.map(s => esc(s.header)+" ("+s.score+")").join("<br>")}</small></td></tr>`).join("");
+};
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button,.tab").forEach(x => x.classList.remove("active"));
+  b.classList.add("active"); $("#" + b.dataset.tab).classList.add("active");
+  if(b.dataset.tab === "docs") loadDocs(); if(b.dataset.tab === "logs") $("#rlogs").click(); });
+$("#persona").onchange = applyPersona; $("#roles").onchange = $("#perms").onchange = mint; $("#screen").onchange = showChips;
+$("#send").onclick = send; $("#q").onkeydown = e => { if(e.key === "Enter") send(); };
+$("#newc").onclick = () => { convId = null; $("#msgs").innerHTML = ""; };
+applyPersona();
+</script>
+</body>
+</html>

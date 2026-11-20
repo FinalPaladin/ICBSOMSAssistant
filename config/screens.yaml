@@ -1,0 +1,60 @@
+# Screen Registry: danh sách màn hình OMS mà chatbot nhận biết.
+# screen_id do FE gửi lên (hoặc widget suy ra từ route). required_permission lấy từ cây permission trong JWT.
+screens:
+  - screen_id: oms.dashboard
+    name: "Dashboard OMS"
+    module: OMS.Dashboard
+    required_permission: OMS.Dashboard
+    allowed_state_fields: []
+    suggested_questions:
+      - "Dashboard OMS hiển thị những chỉ số nào?"
+
+  - screen_id: oms.online.sale-orders.list
+    name: "Đơn hàng Online > Danh sách đơn"
+    module: OMS.Online.SaleOrders
+    required_permission: OMS.Online.SaleOrders
+    allowed_state_fields: []
+    suggested_questions:
+      - "Các trạng thái của đơn hàng Online và ý nghĩa?"
+      - "Làm sao để tìm một đơn Online?"
+
+  - screen_id: oms.online.sale-orders.detail
+    name: "Đơn hàng Online > Chi tiết đơn"
+    module: OMS.Online.SaleOrders
+    required_permission: OMS.Online.SaleOrders.Detail
+    allowed_state_fields: [orderStatus, orderType]
+    suggested_questions:
+      - "Khi nào được phép hủy đơn Online?"
+      - "Quy trình đổi/trả đơn Online như thế nào?"
+
+  - screen_id: oms.online.return-orders.list
+    name: "Đơn trả hàng Online > Danh sách"
+    module: OMS.Online.ReturnOrders
+    required_permission: OMS.Online.ReturnOrders
+    allowed_state_fields: []
+    suggested_questions:
+      - "Quy trình xử lý đơn trả hàng Online?"
+
+  - screen_id: oms.online.return-orders.detail
+    name: "Đơn trả hàng Online > Chi tiết"
+    module: OMS.Online.ReturnOrders
+    required_permission: OMS.Online.ReturnOrders.Detail
+    allowed_state_fields: [orderStatus]
+    suggested_questions:
+      - "Bước tiếp theo sau khi tạo đơn trả là gì?"
+
+  - screen_id: oms.offline.sale-orders.list
+    name: "Đơn hàng Offline > Danh sách đơn"
+    module: OMS.Offline.SaleOrders
+    required_permission: OMS.Offline.SaleOrders
+    allowed_state_fields: []
+    suggested_questions:
+      - "Các trạng thái của đơn hàng Offline?"
+
+  - screen_id: oms.offline.sale-orders.detail
+    name: "Đơn hàng Offline > Chi tiết đơn"
+    module: OMS.Offline.SaleOrders
+    required_permission: OMS.Offline.SaleOrders.Detail
+    allowed_state_fields: [orderStatus]
+    suggested_questions:
+      - "Xử lý đơn Offline có vấn đề (ResolveIssue) như thế nào?"
